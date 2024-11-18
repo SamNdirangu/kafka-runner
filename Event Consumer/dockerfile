@@ -1,0 +1,32 @@
+# Use the official Go image for building the application
+FROM golang:1.21 AS builder
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy the Go modules manifests
+COPY go.mod go.sum ./
+
+# Download the dependencies
+RUN go mod download
+
+# Copy the entire application source code
+COPY . .
+
+# Build the Go application
+RUN go build -o event-consumer .
+
+# Use a minimal base image for running the application
+FROM gcr.io/distroless/base-debian11
+
+# Set the working directory in the runtime image
+WORKDIR /app
+
+# Copy the binary from the builder image
+COPY --from=builder /app/kafka-consumer .
+
+# Expose any necessary ports (optional, e.g., for health checks)
+# EXPOSE 8080
+
+# Run the Go application
+CMD ["./event-consumer"]

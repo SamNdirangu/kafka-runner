@@ -5,7 +5,7 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-  
+
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
@@ -18,12 +18,39 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_LOG_RETENTION_HOURS: 168 # Retain logs for 7 days
     ports:
-      - "9092:9092" 
-  
+      - "9092:9092"
+
   log-producer:
     build:
-      context: ./kafka-producer
-    container_name: kafka-producer
+      context: ./log-producer
+    container_name: log-producer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:9092
+
+  log-consumer:
+    build:
+      context: ./log-consumer
+    container_name: log-consumer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:9092
+
+  event-producer:
+    build:
+      context: ./event-producer
+    container_name: event-producer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:9092
+
+  event-consumer:
+    build:
+      context: ./event-consumer
+    container_name: event-consumer
     depends_on:
       - kafka
     environment:

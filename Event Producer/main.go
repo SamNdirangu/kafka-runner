@@ -30,7 +30,7 @@ func main() {
 	config.Producer.Return.Successes = true
 
 	//Create a new producer
-	producer, err := sarama.NewSyncProducer([]string{"localhost:9092"}, config)
+	producer, err := sarama.NewSyncProducer([]string{"kafka:9092"}, config)
 	if err != nil {
 		log.Fatal(err)
 	}

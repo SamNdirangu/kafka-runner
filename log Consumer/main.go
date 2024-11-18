@@ -13,7 +13,7 @@ func main() {
 	config.Consumer.Return.Errors = true
 
 	//Create a new consumer
-	consumer, err := sarama.NewConsumer([]string{"localhost:9093"}, config)
+	consumer, err := sarama.NewConsumer([]string{"kafka:9092"}, config)
 	if err != nil {
 		log.Fatal(err)
 	}

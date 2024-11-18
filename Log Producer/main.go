@@ -19,7 +19,7 @@ func main() {
 
 	//Create a new producer
 	// A synhrounous producer waits for confirmation of message delivery before proceeding
-	producer, err := sarama.NewSyncProducer([]string{"localhost:9092"}, config)
+	producer, err := sarama.NewSyncProducer([]string{"kafka:9092"}, config)
 	if err != nil {
 		log.Fatal(err)
 	}

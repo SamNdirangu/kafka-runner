@@ -30,7 +30,7 @@ func main() {
 	config.Consumer.Offsets.AutoCommit.Enable = false // Disable auto commit for manual offset management
 
 	//Setup our consumer
-	consumer, err := sarama.NewConsumer([]string{"localhost:9094"}, config)
+	consumer, err := sarama.NewConsumer([]string{"kafka:9092"}, config)
 
 	if err != nil {
 		log.Fatal(err)
@@ -38,7 +38,7 @@ func main() {
 	defer consumer.Close()
 
 	//Setup our dead Letter Producer
-	dlqProducer, err := sarama.NewSyncProducer([]string{"localhost:9092"}, nil)
+	dlqProducer, err := sarama.NewSyncProducer([]string{"kafka:9092"}, nil)
 	if err != nil {
 		log.Fatalf("Failed to create DLQ producer: %v", err)
 	}

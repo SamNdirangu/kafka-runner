@@ -23,7 +23,7 @@ FROM gcr.io/distroless/base-debian11
 WORKDIR /app
 
 # Copy the binary from the builder image
-COPY --from=builder /app/kafka-consumer .
+COPY --from=builder /app/event-consumer .
 
 # Expose any necessary ports (optional, e.g., for health checks)
 # EXPOSE 8080

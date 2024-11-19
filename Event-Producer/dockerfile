@@ -1,5 +1,5 @@
 # Use the official Go image for building the application
-FROM golang:1.21 AS builder
+FROM golang:1.23 AS builder
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -14,10 +14,13 @@ RUN go mod download
 COPY . .
 
 # Build the Go application
-RUN go build -o event-producer .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o event-producer .
 
 # Use a minimal base image for running the application
-FROM gcr.io/distroless/base-debian11
+FROM alpine:3.18
+
+# Install certificates to ensure HTTPS works in the container
+RUN apk add --no-cache ca-certificates
 
 # Set the working directory in the runtime image
 WORKDIR /app
@@ -25,8 +28,8 @@ WORKDIR /app
 # Copy the binary from the builder image
 COPY --from=builder /app/event-producer .
 
-# Expose any necessary ports (optional, e.g., for health checks)
-# EXPOSE 8080
+# Expose the port the application listens on (change as needed)
+EXPOSE 8080
 
 # Run the Go application
 CMD ["./event-producer"]

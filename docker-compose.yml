@@ -1,24 +1,68 @@
 services:
-  zookeeper:
+  #Zookeeper Cluster
+  zookeeper1:
     image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka
-    depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_LOG_RETENTION_HOURS: 168 # Retain logs for 7 days
     ports:
-      - "9092:9092"
+    - "2181:2181"
+
+  zookeeper2:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+    - "2182:2181"
+
+  zookeeper3:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+    - "2183:2181"
+  # End of Zookeeper
+
+  kafka1:
+    image: wurstmeister/kafka:latest
+    environment:
+      KAFKA_ADVERTISED_LISTENER: kafka1:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL: PLAINTEXT
+      KAFKA_LISTENER_NAME: INSIDE
+      KAFKA_LISTENERS: INSIDE://0.0.0.0:9093
+      KAFKA_LISTENER_INTERFACE: INSIDE
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:2181,zookeeper2:2181,zookeeper3:2181
+      KAFKA_LISTENER_PORT: 9093
+    ports:
+      - "9093:9093"
+
+  kafka2:
+    image: wurstmeister/kafka:latest
+    environment:
+      KAFKA_ADVERTISED_LISTENER: kafka2:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL: PLAINTEXT
+      KAFKA_LISTENER_NAME: INSIDE
+      KAFKA_LISTENERS: INSIDE://0.0.0.0:9093
+      KAFKA_LISTENER_INTERFACE: INSIDE
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:2181,zookeeper2:2181,zookeeper3:2181
+      KAFKA_LISTENER_PORT: 9093
+    ports:
+      - "9094:9093"
+
+  kafka3:
+    image: wurstmeister/kafka:latest
+    environment:
+      KAFKA_ADVERTISED_LISTENER: kafka3:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL: PLAINTEXT
+      KAFKA_LISTENER_NAME: INSIDE
+      KAFKA_LISTENERS: INSIDE://0.0.0.0:9093
+      KAFKA_LISTENER_INTERFACE: INSIDE
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:2181,zookeeper2:2181,zookeeper3:2181
+      KAFKA_LISTENER_PORT: 9093
+    ports:
+      - "9095:9093"
 
   log-producer:
     build:
@@ -55,3 +99,25 @@ services:
       - kafka
     environment:
       KAFKA_BROKER: kafka:9092
+
+  
+  event-consumergroup1:
+    build:
+      context: ./event-consumer-group
+    container_name: event-consumergroup1
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:9092
+      CONSUMER_ID: 1
+
+  event-consumergroup2:
+    build:
+      context: ./event-consumer-group
+    container_name: event-consumergroup2
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:9092
+      CONSUMER_ID: 2
+

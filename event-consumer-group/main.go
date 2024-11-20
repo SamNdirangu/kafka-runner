@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -27,7 +28,8 @@ type User struct {
 
 // ConsumerGroupHandler handles consumed messages
 type ConsumerGroupHandler struct {
-	producer sarama.SyncProducer
+	producer          sarama.SyncProducer
+	processedProducer sarama.SyncProducer
 }
 
 func (ConsumerGroupHandler) Setup(sarama.ConsumerGroupSession) error {
@@ -41,43 +43,9 @@ func (ConsumerGroupHandler) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-func (handler *ConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	// This method is called to process each message in the topic
-	consumerIdString, nil := os.LookupEnv("CONSUMER_ID")
-	var consumerId int = 0
-	if id, err := strconv.Atoi(consumerIdString); err == nil {
-		consumerId = id
-	}
-
-	fmt.Println("Consumer messages... ConsumerID: ", consumerId)
-
-	for msg := range claim.Messages() {
-		var logEvent LogEvent
-		err := json.Unmarshal(msg.Value, &logEvent)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if logEvent.ID == "50" {
-			log.Fatal("Simulated uncaught error at event 30")
-		}
-		//One can do here some data transformations
-		err = processMessage(msg, consumerId)
-		if err != nil {
-			sendToDeadLetterQueue(handler, msg)
-			continue
-		}
-		// Acknowledge the message to Kafka
-
-		fmt.Printf("Consumer %d received LogEvnet: %s\n", consumerId, logEvent)
-		session.MarkMessage(msg, "")
-	}
-
-	return nil
-}
-
 func main() {
 	//Setup our kafka brokers
-	brokers := []string{"kafka1:9093", "kafka2:9093", "kafka3:9093"}
+	brokers := []string{"kafka:9092"}
 
 	// Prodoucer Sections -------------------------------------------
 	producerConfig := sarama.NewConfig()
@@ -90,6 +58,13 @@ func main() {
 		log.Fatalf("Failed to create DLQ producer: %v", err)
 	}
 	defer dlqProducer.Close()
+
+	// Create our Processed Messages Producer
+	processedProducer, err := sarama.NewSyncProducer(brokers, producerConfig)
+	if err != nil {
+		log.Fatalf("Failed to create processed messages producer: %v", err)
+	}
+	defer processedProducer.Close()
 
 	// Consumer Section -----------------------------------------------------------
 	config := sarama.NewConfig()
@@ -107,37 +82,65 @@ func main() {
 
 	//Define a hanlder for processing messages
 	handler := ConsumerGroupHandler{
-		producer: dlqProducer,
+		producer:          dlqProducer,
+		processedProducer: processedProducer,
 	}
 
 	//Subscribe to a topic
 	for {
-		if err := consumerGroup.Consume(nil, []string{"events"}, handler); err != nil {
+		if err := consumerGroup.Consume(context.TODO(), []string{"events"}, handler); err != nil {
 			log.Fatal("Error while consuming:", err)
 		}
 	}
 
 }
 
-// processMessage unmarshals and processes the Kafka message
-func processMessage(msg *sarama.ConsumerMessage, consumerId int) error {
-	var logEvent LogEvent
-	err := json.Unmarshal(msg.Value, &logEvent)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal message: %w", err)
+func (handler ConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	// This method is called to process each message in the topic
+	consumerIdString, _ := os.LookupEnv("CONSUMER_ID")
+	var consumerId int = 0
+	id, err := strconv.Atoi(consumerIdString)
+	if err == nil {
+		consumerId = id
 	}
 
-	if logEvent.ID == "30" {
-		log.Fatal("OOOps snapped at 30")
+	fmt.Println("Consumer messages... ConsumerID: ", consumerId)
+
+	for msg := range claim.Messages() {
+		//One can do here some data transformations
+		_, err := processMessage(msg, consumerId)
+		if err != nil {
+			sendToDeadLetterQueue(handler.producer, msg)
+			continue
+		}
+		// Acknowledge the message to Kafka
+
+		session.MarkMessage(msg, "")
+		sendToProcessedMessagesQueue(handler.processedProducer, msg)
 	}
 
-	// Simulate message processing (e.g., save to database or transform)
-	log.Printf("Consumer: %d Processed LogEvent: %+v", consumerId, logEvent)
 	return nil
 }
 
+// processMessage unmarshals and processes the Kafka message
+func processMessage(msg *sarama.ConsumerMessage, consumerId int) (LogEvent, error) {
+	var logEvent LogEvent
+	err := json.Unmarshal(msg.Value, &logEvent)
+	if err != nil {
+		return logEvent, fmt.Errorf("failed to unmarshal message: %w", err)
+	}
+
+	if logEvent.ID == "30" {
+		return logEvent, fmt.Errorf("oops snapped at %q", logEvent.ID)
+	}
+	// Simulate message processing (e.g., save to database or transform)
+	log.Printf("Consumer: %d Processed LogEvent: %+v", consumerId, logEvent)
+	log.Println()
+	return logEvent, nil
+}
+
 // sendToDeadLetterQueue sends problematic messages to the DLQ topic
-func (handler *ConsumerGroupHandler) sendToDeadLetterQueue(producer sarama.SyncProducer, msg *sarama.ConsumerMessage) {
+func sendToDeadLetterQueue(producer sarama.SyncProducer, msg *sarama.ConsumerMessage) {
 
 	dlqMessage := &sarama.ProducerMessage{
 		Topic: "dead_letter_queue",
@@ -145,7 +148,24 @@ func (handler *ConsumerGroupHandler) sendToDeadLetterQueue(producer sarama.SyncP
 		Value: sarama.ByteEncoder(msg.Value), // Preserve original value
 	}
 
-	partition, offset, err := handler.producer.SendMessage(dlqMessage)
+	partition, offset, err := producer.SendMessage(dlqMessage)
+	if err != nil {
+		log.Printf("Failed to send message to DLQ: %v", err)
+	} else {
+		log.Printf("Message sent to DLQ: partition %d, offset %d", partition, offset)
+	}
+}
+
+// sendToDeadLetterQueue sends problematic messages to the DLQ topic
+func sendToProcessedMessagesQueue(producer sarama.SyncProducer, msg *sarama.ConsumerMessage) {
+
+	processedMessage := &sarama.ProducerMessage{
+		Topic: "processed_messages",
+		Key:   sarama.ByteEncoder(msg.Key),   // Preserve original key
+		Value: sarama.ByteEncoder(msg.Value), // Preserve original value
+	}
+
+	partition, offset, err := producer.SendMessage(processedMessage)
 	if err != nil {
 		log.Printf("Failed to send message to DLQ: %v", err)
 	} else {

@@ -29,8 +29,9 @@ func main() {
 	config.Consumer.Return.Errors = true
 	config.Consumer.Offsets.AutoCommit.Enable = false // Disable auto commit for manual offset management
 
+	brokers := []string{"kafka:9092"}
 	//Setup our consumer
-	consumer, err := sarama.NewConsumer([]string{"kafka:9092"}, config)
+	consumer, err := sarama.NewConsumer(brokers, config)
 
 	if err != nil {
 		log.Fatal(err)
@@ -38,17 +39,17 @@ func main() {
 	defer consumer.Close()
 
 	//Setup our dead Letter Producer
-	dlqProducer, err := sarama.NewSyncProducer([]string{"kafka:9092"}, nil)
+	dlqProducer, err := sarama.NewSyncProducer(brokers, nil)
 	if err != nil {
 		log.Fatalf("Failed to create DLQ producer: %v", err)
 	}
 	defer dlqProducer.Close()
 
 	//We spawn multiple consumers to process our events
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 1; i++ {
 		go func(consumerId int) {
 			// Start consuming from the data-pipeline topic
-			partitionConsumer, err := consumer.ConsumePartition("events", int32(consumerId), sarama.OffsetNewest)
+			partitionConsumer, err := consumer.ConsumePartition("events", 0, sarama.OffsetOldest)
 			if err != nil {
 				log.Fatal(err)
 			}

@@ -25,12 +25,14 @@ type User struct {
 }
 
 func main() {
+
+	brokers := []string{"kafka:9092"}
 	//Set up our kafka using sarama
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
 
 	//Create a new producer
-	producer, err := sarama.NewSyncProducer([]string{"kafka:9092"}, config)
+	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -40,7 +42,7 @@ func main() {
 	for i := 0; i < 100; i++ {
 
 		logEvent := LogEvent{
-			ID:      string(i),
+			ID:      fmt.Sprintf("%d", i),
 			Type:    "UserCreation",
 			Message: "User just created bla bla",
 			User: User{
@@ -70,7 +72,7 @@ func main() {
 		}
 
 		//Simulate a 15second delay
-		time.Sleep(15 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 
 }

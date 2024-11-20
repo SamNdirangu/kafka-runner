@@ -1,123 +1,221 @@
 services:
-  #Zookeeper Cluster
+# Zookeeper
   zookeeper1:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: confluentinc/cp-zookeeper:latest
+    hostname: zookeeper1
+    container_name: zookeeper1
     environment:
+      ZOOKEEPER_SERVER_ID: 1
       ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_TICK_TIME: 500
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 5
+      ZOOKEEPER_SERVERS: zookeeper1:2888:3888;zookeeper2:2888:3888;zookeeper3:2888:3888
     ports:
-    - "2181:2181"
-
+      - "2181:2181"
+    networks:
+      kafka-cluster:
+        aliases:
+          - zookeeper
   zookeeper2:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: confluentinc/cp-zookeeper:latest
+    hostname: zookeeper2
+    container_name: zookeeper2
     environment:
+      ZOOKEEPER_SERVER_ID: 2
       ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_TICK_TIME: 500
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 5
+      ZOOKEEPER_SERVERS: zookeeper1:2888:3888;zookeeper2:2888:3888;zookeeper3:2888:3888
     ports:
-    - "2182:2181"
-
+      - "2182:2181"
+    networks:
+      kafka-cluster:
+        aliases:
+          - zookeeper
   zookeeper3:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: confluentinc/cp-zookeeper:latest
+    hostname: zookeeper3
+    container_name: zookeeper3
     environment:
+      ZOOKEEPER_SERVER_ID: 3
       ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_TICK_TIME: 500
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 5
+      ZOOKEEPER_SERVERS: zookeeper1:2888:3888;zookeeper2:2888:3888;zookeeper3:2888:3888
     ports:
-    - "2183:2181"
-  # End of Zookeeper
-
+      - "2183:2181"
+    networks:
+      kafka-cluster:
+        aliases:
+          - zookeeper
+# Kafka -------------------------------------------------------------------------------------------
   kafka1:
-    image: wurstmeister/kafka:latest
-    environment:
-      KAFKA_ADVERTISED_LISTENER: kafka1:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL: PLAINTEXT
-      KAFKA_LISTENER_NAME: INSIDE
-      KAFKA_LISTENERS: INSIDE://0.0.0.0:9093
-      KAFKA_LISTENER_INTERFACE: INSIDE
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:2181,zookeeper2:2181,zookeeper3:2181
-      KAFKA_LISTENER_PORT: 9093
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka1
+    container_name: kafka1
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
+    networks:
+        kafka-cluster:
+          aliases:
+            - kafka
     ports:
-      - "9093:9093"
-
+    - "9092:9092"  # Internal Docker network
+    - "9093:9093"  # External access
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:2181,zookeeper2:2181,zookeeper3:2181
+      # Define listeners for internal and external connections
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      # Inter-broker communication uses the internal PLAINTEXT listener
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Offset replication factor (ensure this matches the number of brokers)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3    
   kafka2:
-    image: wurstmeister/kafka:latest
-    environment:
-      KAFKA_ADVERTISED_LISTENER: kafka2:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL: PLAINTEXT
-      KAFKA_LISTENER_NAME: INSIDE
-      KAFKA_LISTENERS: INSIDE://0.0.0.0:9093
-      KAFKA_LISTENER_INTERFACE: INSIDE
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:2181,zookeeper2:2181,zookeeper3:2181
-      KAFKA_LISTENER_PORT: 9093
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka2
+    container_name: kafka2
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
+    networks:
+        kafka-cluster:
+          aliases:
+            - kafka
     ports:
-      - "9094:9093"
-
+    - "9094:9092"  # Internal Docker network
+    - "9095:9093"  # External access
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:2181,zookeeper2:2181,zookeeper3:2181
+      # Define listeners for internal and external connections
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      # Inter-broker communication uses the internal PLAINTEXT listener
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Offset replication factor (ensure this matches the number of brokers)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
   kafka3:
-    image: wurstmeister/kafka:latest
-    environment:
-      KAFKA_ADVERTISED_LISTENER: kafka3:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL: PLAINTEXT
-      KAFKA_LISTENER_NAME: INSIDE
-      KAFKA_LISTENERS: INSIDE://0.0.0.0:9093
-      KAFKA_LISTENER_INTERFACE: INSIDE
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:2181,zookeeper2:2181,zookeeper3:2181
-      KAFKA_LISTENER_PORT: 9093
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka3
+    container_name: kafka3
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
     ports:
-      - "9095:9093"
-
-  log-producer:
-    build:
-      context: ./log-producer
-    container_name: log-producer
-    depends_on:
-      - kafka
+      - "9096:9092"  # Internal Docker network
+      - "9098:9093"  # External access
+    networks:
+      kafka-cluster:
+        aliases:
+          - kafka
     environment:
-      KAFKA_BROKER: kafka:9092
-
-  log-consumer:
-    build:
-      context: ./log-consumer
-    container_name: log-consumer
-    depends_on:
-      - kafka
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:2181,zookeeper2:2181,zookeeper3:2181
+      # Define listeners for internal and external connections
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka3:9092,EXTERNAL://localhost:9095
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      # Inter-broker communication uses the internal PLAINTEXT listener
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Offset replication factor (ensure this matches the number of brokers)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+# Kafka UI --------------------------------------------------------------------
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
     environment:
-      KAFKA_BROKER: kafka:9092
-
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka1:9092,kafka2:9092,kafka3:9092
+    networks:
+      kafka-cluster:
+# Producers -----------------------------------------------------------------
   event-producer:
     build:
       context: ./event-producer
     container_name: event-producer
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
     environment:
       KAFKA_BROKER: kafka:9092
-
+    networks:
+      kafka-cluster:
+  log-producer:
+    build:
+      context: ./log-producer
+    container_name: log-producer
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    networks:
+      kafka-cluster:
+# Consumers --------------------------------------------------------------------
+  log-consumer:
+    build:
+      context: ./log-consumer
+    container_name: log-consumer
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    environment:
+      KAFKA_BROKER: kafka:9092
+    networks:
+      kafka-cluster:
   event-consumer:
     build:
       context: ./event-consumer
     container_name: event-consumer
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
     environment:
       KAFKA_BROKER: kafka:9092
-
-  
+    networks:
+      kafka-cluster:
   event-consumergroup1:
     build:
       context: ./event-consumer-group
     container_name: event-consumergroup1
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
     environment:
       KAFKA_BROKER: kafka:9092
       CONSUMER_ID: 1
-
+    networks:
+      kafka-cluster:
   event-consumergroup2:
     build:
       context: ./event-consumer-group
     container_name: event-consumergroup2
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
     environment:
       KAFKA_BROKER: kafka:9092
       CONSUMER_ID: 2
+    networks:
+      kafka-cluster:
 
+networks:
+  kafka-cluster:
+    driver: bridge  

@@ -13,13 +13,14 @@ import (
 
 func main() {
 
+	brokers := []string{"kafka:9092"}
 	// Set up our kafka configuration
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
 
 	//Create a new producer
 	// A synhrounous producer waits for confirmation of message delivery before proceeding
-	producer, err := sarama.NewSyncProducer([]string{"kafka:9092"}, config)
+	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -42,6 +43,6 @@ func main() {
 		}
 
 		//Simulate a delay
-		time.Sleep(15 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 }
